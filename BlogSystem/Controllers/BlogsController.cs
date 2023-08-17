@@ -23,7 +23,7 @@ namespace BlogSystem.Controllers
         // GET: Blogs
         public async Task<IActionResult> Index()
         {
-            List<Blog> blogs = await _context.Blogs.Include(blog => blog.Comments).ToListAsync();
+            List<Blog> blogs = await _context.Blogs.ToListAsync();
             return View(blogs);
                          
         }
@@ -36,11 +36,13 @@ namespace BlogSystem.Controllers
                 return NotFound();
             }
 
-            var blog = await _context.Blogs.Include(blog => blog.Comments)
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (blog == null)
+            Blog? blog = await _context.Blogs.FirstOrDefaultAsync(m => m.Id == id);
+            if (blog != null)
             {
-                return NotFound();
+                foreach (var comment in blog.Comments)
+                {
+                    Console.WriteLine(comment.Content);
+                }
             }
 
             return View(blog);
