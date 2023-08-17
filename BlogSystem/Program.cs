@@ -11,7 +11,7 @@ namespace BlogSystem
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            builder.Services.AddDbContext<ApplicationDbContext>(options =>
+            builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
             {
                 // enable lazy loading
                 options.UseLazyLoadingProxies().UseSqlServer(builder.Configuration.GetConnectionString("blogDbEntities"));
