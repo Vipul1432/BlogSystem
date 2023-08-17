@@ -11,9 +11,10 @@ namespace BlogSystem
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
+            builder.Services.AddDbContext<ApplicationDbContext>(options =>
             {
-                options.UseSqlServer(builder.Configuration.GetConnectionString("blogDbEntities"));
+                // enable lazy loading
+                options.UseLazyLoadingProxies().UseSqlServer(builder.Configuration.GetConnectionString("blogDbEntities"));
             });
 
             // Add services to the container.
