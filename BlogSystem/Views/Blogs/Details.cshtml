@@ -1,0 +1,31 @@
+﻿@model BlogSystem.Domain.Models.Blog
+
+@{
+    ViewData["Title"] = "Details";
+}
+
+<h1>Details</h1>
+
+<div>
+    <div class="blog">
+        <h2>@Model.Title</h2>
+        <p>@Model.Content</p>
+        @if (Model.Comments != null && Model.Comments.Count > 0)
+        {
+            <h3>Comments:</h3>
+            <ul>
+                @foreach (var comment in Model.Comments)
+                {
+                    <li>@comment.Content (Comment ID: @comment.Id)</li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p>No comments for this blog.</p>
+        }
+    </div>
+</div>
+    <a asp-action="Edit" asp-route-id="@Model?.Id">Edit</a> |
+    <a asp-action="Index">Back to List</a>
+</div>
