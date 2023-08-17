@@ -1,13 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
-using BlogSystem.Data;
+﻿using BlogSystem.Data.Context;
+using BlogSystem.Domain.DTO;
 using BlogSystem.Domain.Models;
-using BlogSystem.Data.Context;
+using BlogSystem.Domain.ViewModels;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BlogSystem.Controllers
 {
@@ -25,7 +21,7 @@ namespace BlogSystem.Controllers
         {
             List<Blog> blogs = await _context.Blogs.ToListAsync();
             return View(blogs);
-                         
+
         }
 
         // GET: Blogs/Details/5
@@ -51,70 +47,105 @@ namespace BlogSystem.Controllers
         // GET: Blogs/Create
         public IActionResult Create()
         {
-            return View();
+            var viewModel = new BlogWithCommentsViewModel
+            {
+                Blog = new BlogDto(),
+                Comments = new List<CommentDto> { new CommentDto(), new CommentDto() }
+            };
+            return View(viewModel);
         }
 
         // POST: Blogs/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Title,Content")] Blog blog)
+        public async Task<IActionResult> Create(BlogWithCommentsViewModel blogDto)
         {
             if (ModelState.IsValid)
             {
-                _context.Add(blog);
+                var newBlog = new Blog
+                {
+                    Title = blogDto.Blog.Title,
+                    Content = blogDto.Blog.Content
+                };
+
+                _context.Blogs.Add(newBlog);
                 await _context.SaveChangesAsync();
+
+                foreach (var commentDto in blogDto.Comments)
+                {
+                    var newComment = new Comment
+                    {
+                        Content = commentDto.Content,
+                        BlogId = newBlog.Id
+                    };
+
+                    _context.Comments.Add(newComment);
+                    await _context.SaveChangesAsync();
+                }
                 return RedirectToAction(nameof(Index));
             }
-            return View(blog);
+            return View(blogDto);
         }
 
         // GET: Blogs/Edit/5
         public async Task<IActionResult> Edit(int? id)
         {
-            if (id == null || _context.Blogs == null)
+            var existingBlog = await _context.Blogs.Include(b => b.Comments).FirstOrDefaultAsync(b => b.Id == id);
+            if (existingBlog == null)
             {
                 return NotFound();
             }
 
-            var blog = await _context.Blogs.FindAsync(id);
-            if (blog == null)
+            var viewModel = new BlogWithCommentsViewModel
             {
-                return NotFound();
-            }
-            return View(blog);
+                Blog = new BlogDto
+                {
+                    Id = existingBlog.Id,
+                    Title = existingBlog.Title,
+                    Content = existingBlog.Content
+                },
+                Comments = existingBlog.Comments.Select(c => new CommentDto { Id = c.Id, Content = c.Content }).ToList()
+            };
+            return View(viewModel);
         }
 
         // POST: Blogs/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,Title,Content")] Blog blog)
+        public async Task<IActionResult> Edit(int id, BlogWithCommentsViewModel viewModel)
         {
-            if (id != blog.Id)
-            {
-                return NotFound();
-            }
-
             if (ModelState.IsValid)
             {
                 try
                 {
-                    _context.Update(blog);
-                    await _context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!BlogExists(blog.Id))
+                    var existingBlog = await _context.Blogs.Include(b => b.Comments).FirstOrDefaultAsync(b => b.Id == id);
+                    if (existingBlog == null)
                     {
                         return NotFound();
                     }
-                    else
+
+                    existingBlog.Title = viewModel.Blog.Title;
+                    existingBlog.Content = viewModel.Blog.Content;
+
+                    foreach (var commentDto in viewModel.Comments)
                     {
-                        throw;
+                        var existingComment = existingBlog.Comments.FirstOrDefault(c => c.Id == commentDto.Id);
+                        if (existingComment != null)
+                        {
+                            existingComment.Content = commentDto.Content;
+                        }
                     }
+
+                    await _context.SaveChangesAsync();
+                    return RedirectToAction(nameof(Index));
                 }
-                return RedirectToAction(nameof(Index));
+                catch (DbUpdateConcurrencyException)
+                {
+                    ModelState.AddModelError("ConcurrencyToken", "The blog has been updated by another user.");
+                }
             }
-            return View(blog);
+
+            return View(viewModel);
         }
 
         // GET: Blogs/Delete/5
@@ -125,8 +156,7 @@ namespace BlogSystem.Controllers
                 return NotFound();
             }
 
-            var blog = await _context.Blogs
-                .FirstOrDefaultAsync(m => m.Id == id);
+            var blog = await _context.Blogs.FirstOrDefaultAsync(m => m.Id == id);
             if (blog == null)
             {
                 return NotFound();
@@ -149,14 +179,14 @@ namespace BlogSystem.Controllers
             {
                 _context.Blogs.Remove(blog);
             }
-            
+
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
         }
 
         private bool BlogExists(int id)
         {
-          return (_context.Blogs?.Any(e => e.Id == id)).GetValueOrDefault();
+            return (_context.Blogs?.Any(e => e.Id == id)).GetValueOrDefault();
         }
     }
 }
