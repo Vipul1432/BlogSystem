@@ -4,7 +4,8 @@
     ViewData["Title"] = "Details";
 }
 
-<h1>Details</h1>
+<h2 class="text-info">Details</h2>
+<hr class="w-25" />
 
 <div>
     <div class="blog">
@@ -12,7 +13,7 @@
         <p>@Model.Content</p>
         @if (Model.Comments != null && Model.Comments.Count > 0)
         {
-            <h3>Comments:</h3>
+            <h5>Comments :</h5>
             <ul>
                 @foreach (var comment in Model.Comments)
                 {
@@ -26,6 +27,6 @@
         }
     </div>
 </div>
-    <a asp-action="Edit" asp-route-id="@Model?.Id">Edit</a> |
-    <a asp-action="Index">Back to List</a>
+    <a asp-action="Edit" asp-route-id="@Model?.Id" class="btn btn-sm btn-warning">Edit</a> |
+    <a asp-action="Index" class="btn btn-sm btn-success">Back to List</a>
 </div>
