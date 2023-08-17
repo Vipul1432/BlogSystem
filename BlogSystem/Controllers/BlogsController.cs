@@ -17,6 +17,7 @@ namespace BlogSystem.Controllers
         }
 
         // GET: Blogs
+        [ResponseCache(Duration = 300,Location = ResponseCacheLocation.Client)]
         public async Task<IActionResult> Index()
         {
             List<Blog> blogs = await _context.Blogs.ToListAsync();
