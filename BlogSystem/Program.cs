@@ -1,3 +1,8 @@
+using BlogSystem.Data.Context;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using BlogSystem.Data;
+
 namespace BlogSystem
 {
     public class Program
@@ -6,8 +11,15 @@ namespace BlogSystem
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
+            {
+                options.UseSqlServer(builder.Configuration.GetConnectionString("blogDbEntities"));
+            });
+
             // Add services to the container.
             builder.Services.AddControllersWithViews();
+
+           
 
             var app = builder.Build();
 
