@@ -2,6 +2,10 @@ using BlogSystem.Data.Context;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using BlogSystem.Data;
+using BlogSystem.Data.Repository;
+using BlogSystem.Domain.Interfaces;
+using BlogSystem.Domain.Models;
+using BlogSystem.Data.UnitOfWork;
 
 namespace BlogSystem
 {
@@ -16,6 +20,10 @@ namespace BlogSystem
                 // enable lazy loading
                 options.UseLazyLoadingProxies().UseSqlServer(builder.Configuration.GetConnectionString("blogDbEntities"));
             });
+
+            // Dependency Injection
+            builder.Services.AddScoped<IRepository<Blog>, Repository<Blog>>();
+            builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             // Add services to the container.
             builder.Services.AddControllersWithViews();

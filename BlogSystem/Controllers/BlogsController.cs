@@ -1,5 +1,6 @@
 ﻿using BlogSystem.Data.Context;
 using BlogSystem.Domain.DTO;
+using BlogSystem.Domain.Interfaces;
 using BlogSystem.Domain.Models;
 using BlogSystem.Domain.ViewModels;
 using Microsoft.AspNetCore.Mvc;
@@ -9,37 +10,37 @@ namespace BlogSystem.Controllers
 {
     public class BlogsController : Controller
     {
+        private readonly IRepository<Blog> _blogRepository;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ApplicationDbContext _context;
 
-        public BlogsController(ApplicationDbContext context)
+        public BlogsController(IRepository<Blog> blogRepository, IUnitOfWork unitOfWork, ApplicationDbContext context)
         {
+            _blogRepository = blogRepository;
+            _unitOfWork = unitOfWork;
             _context = context;
         }
 
         // GET: Blogs
-        [ResponseCache(Duration = 300,Location = ResponseCacheLocation.Client)]
+        [ResponseCache(Duration = 300, Location = ResponseCacheLocation.Client)]
         public async Task<IActionResult> Index()
         {
-            List<Blog> blogs = await _context.Blogs.ToListAsync();
+            var blogs = await _blogRepository.GetAllAsync();
             return View(blogs);
-
         }
 
         // GET: Blogs/Details/5
         public async Task<IActionResult> Details(int? id)
         {
-            if (id == null || _context.Blogs == null)
+            if (id == null)
             {
                 return NotFound();
             }
 
-            Blog? blog = await _context.Blogs.FirstOrDefaultAsync(m => m.Id == id);
-            if (blog != null)
+            var blog = await _blogRepository.GetByIdAsync(id.Value);
+            if (blog == null)
             {
-                foreach (var comment in blog.Comments)
-                {
-                    Console.WriteLine(comment.Content);
-                }
+                return NotFound();
             }
 
             return View(blog);
@@ -56,46 +57,48 @@ namespace BlogSystem.Controllers
             return View(viewModel);
         }
 
-        // POST: Blogs/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(BlogWithCommentsViewModel viewModel)
         {
             if (ModelState.IsValid)
             {
-                using (var transaction = _context.Database.BeginTransaction())
+                _unitOfWork.BeginTransaction();
+                try
                 {
-                    try
+                    var newBlog = new Blog
                     {
-                        var newBlog = new Blog
+                        Title = viewModel.Blog.Title,
+                        Content = viewModel.Blog.Content
+                    };
+
+                    _blogRepository.Add(newBlog);
+                    await _unitOfWork.SaveChangesAsync();
+
+                    foreach (var commentDto in viewModel.Comments)
+                    {
+                        var newComment = new Comment
                         {
-                            Title = viewModel.Blog.Title,
-                            Content = viewModel.Blog.Content
+                            Content = commentDto.Content,
+                            BlogId = newBlog.Id
                         };
 
-                        _context.Blogs.Add(newBlog);
-                        await _context.SaveChangesAsync();
-
-                        foreach (var commentDto in viewModel.Comments)
-                        {
-                            var newComment = new Comment
-                            {
-                                Content = commentDto.Content,
-                                BlogId = newBlog.Id
-                            };
-
-                            _context.Comments.Add(newComment);
-                            await _context.SaveChangesAsync();
-                        }
-
-                        transaction.Commit();
-                        return RedirectToAction(nameof(Index));
+                        _context.Comments.Add(newComment); 
+                        await _unitOfWork.SaveChangesAsync();
                     }
-                    catch (Exception)
-                    {
-                        transaction.Rollback();
-                        ModelState.AddModelError("", "An error occurred while creating the blog and comments.");
-                    }
+
+                    await _unitOfWork.CommitAsync();
+                    return RedirectToAction(nameof(Index));
+                }
+                catch (Exception)
+                {
+                    _unitOfWork.Rollback();
+                    ModelState.AddModelError("", "An error occurred while creating the blog and comments.");
+                }
+                finally
+                {
+                    // It Make sure to roll back in case of any exception
+                    _unitOfWork.Rollback(); 
                 }
             }
 
@@ -105,7 +108,12 @@ namespace BlogSystem.Controllers
         // GET: Blogs/Edit/5
         public async Task<IActionResult> Edit(int? id)
         {
-            var existingBlog = await _context.Blogs.Include(b => b.Comments).FirstOrDefaultAsync(b => b.Id == id);
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            var existingBlog = await _blogRepository.GetByIdAsync(id.Value);
             if (existingBlog == null)
             {
                 return NotFound();
@@ -121,19 +129,24 @@ namespace BlogSystem.Controllers
                 },
                 Comments = existingBlog.Comments.Select(c => new CommentDto { Id = c.Id, Content = c.Content }).ToList()
             };
+
             return View(viewModel);
         }
 
-        // POST: Blogs/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, BlogWithCommentsViewModel viewModel)
         {
+            if (id != viewModel.Blog.Id)
+            {
+                return NotFound();
+            }
+
             if (ModelState.IsValid)
             {
                 try
                 {
-                    var existingBlog = await _context.Blogs.Include(b => b.Comments).FirstOrDefaultAsync(b => b.Id == id);
+                    var existingBlog = await _blogRepository.GetByIdAsync(id);
                     if (existingBlog == null)
                     {
                         return NotFound();
@@ -151,7 +164,7 @@ namespace BlogSystem.Controllers
                         }
                     }
 
-                    await _context.SaveChangesAsync();
+                    await _unitOfWork.SaveChangesAsync();
                     return RedirectToAction(nameof(Index));
                 }
                 catch (DbUpdateConcurrencyException)
@@ -166,12 +179,12 @@ namespace BlogSystem.Controllers
         // GET: Blogs/Delete/5
         public async Task<IActionResult> Delete(int? id)
         {
-            if (id == null || _context.Blogs == null)
+            if (id == null)
             {
                 return NotFound();
             }
 
-            var blog = await _context.Blogs.FirstOrDefaultAsync(m => m.Id == id);
+            var blog = await _blogRepository.GetByIdAsync(id.Value);
             if (blog == null)
             {
                 return NotFound();
@@ -185,23 +198,20 @@ namespace BlogSystem.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
-            if (_context.Blogs == null)
+            var blog = await _blogRepository.GetByIdAsync(id);
+            if (blog == null)
             {
-                return Problem("Entity set 'BlogSystemContext.Blog'  is null.");
-            }
-            var blog = await _context.Blogs.FindAsync(id);
-            if (blog != null)
-            {
-                _context.Blogs.Remove(blog);
+                return NotFound();
             }
 
-            await _context.SaveChangesAsync();
+            _blogRepository.Remove(blog);
+            await _unitOfWork.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
         }
 
         private bool BlogExists(int id)
         {
-            return (_context.Blogs?.Any(e => e.Id == id)).GetValueOrDefault();
+            return _blogRepository.GetByIdAsync(id).Result != null;
         }
     }
 }
