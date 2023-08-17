@@ -58,33 +58,47 @@ namespace BlogSystem.Controllers
         // POST: Blogs/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(BlogWithCommentsViewModel blogDto)
+        public async Task<IActionResult> Create(BlogWithCommentsViewModel viewModel)
         {
             if (ModelState.IsValid)
             {
-                var newBlog = new Blog
+                using (var transaction = _context.Database.BeginTransaction())
                 {
-                    Title = blogDto.Blog.Title,
-                    Content = blogDto.Blog.Content
-                };
-
-                _context.Blogs.Add(newBlog);
-                await _context.SaveChangesAsync();
-
-                foreach (var commentDto in blogDto.Comments)
-                {
-                    var newComment = new Comment
+                    try
                     {
-                        Content = commentDto.Content,
-                        BlogId = newBlog.Id
-                    };
+                        var newBlog = new Blog
+                        {
+                            Title = viewModel.Blog.Title,
+                            Content = viewModel.Blog.Content
+                        };
 
-                    _context.Comments.Add(newComment);
-                    await _context.SaveChangesAsync();
+                        _context.Blogs.Add(newBlog);
+                        await _context.SaveChangesAsync();
+
+                        foreach (var commentDto in viewModel.Comments)
+                        {
+                            var newComment = new Comment
+                            {
+                                Content = commentDto.Content,
+                                BlogId = newBlog.Id
+                            };
+
+                            _context.Comments.Add(newComment);
+                            await _context.SaveChangesAsync();
+                        }
+
+                        transaction.Commit();
+                        return RedirectToAction(nameof(Index));
+                    }
+                    catch (Exception)
+                    {
+                        transaction.Rollback();
+                        ModelState.AddModelError("", "An error occurred while creating the blog and comments.");
+                    }
                 }
-                return RedirectToAction(nameof(Index));
             }
-            return View(blogDto);
+
+            return View(viewModel);
         }
 
         // GET: Blogs/Edit/5
